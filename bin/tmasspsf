@@ -66,13 +66,18 @@ if __name__ == "__main__":
         host = args.host
     redo = args.redo                         # if called, redo = True
 
+    if os.path.exists(filename)==False:
+        print(filename,'not found')
+        sys.exit()
+
     basedir = '/net/dl2/dnidever/2mass/'
     tmproot = '/data0/dnidever/2mass/'
     outdir = basedir+'results/'
 
     base = os.path.basename(filename)
     base = base.replace('.gz','').replace('.fits','')
-    outfile = outdir+base+'.fits'
+    band = base[0]
+    outfile = outdir+'/'+band+'/'+base+'.fits'
 
     # Check if the output files already exist
     if (os.path.exists(outfile) or os.path.exists(outfile+'.gz')) and redo==False:
