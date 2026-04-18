@@ -5,13 +5,13 @@ from dlnpyutils import utils as dln,job_daemon as jd
 
 script = '/home/dnidever/projects/tmasspsf/bin/tmasspsf'
 outdir = '/net/dl2/dnidever/2mass/results/'
-images = glob('/net/dl2/dnidever/2mass/images/*.fits.gz')
+images = glob('/net/dl2/dnidever/2mass/images/?/*.fits.gz')
 images.sort()
 ibase = [os.path.basename(f) for f in images]
 print(len(images),'2MASS images')
 
 # Remove images that have already been processed
-cfiles = glob('/net/dl2/dnidever/2mass/results/*.fits.gz')
+cfiles = glob('/net/dl2/dnidever/2mass/results/?/*.fits.gz')
 cfiles.sort()
 cbase = [os.path.basename(f) for f in cfiles]
 _,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
@@ -25,12 +25,13 @@ print(len(files),'files to process')
 
 np.random.seed(0)
 np.random.shuffle(files)
-cmds = np.zeros(len(files),(str,100))
+cmds = np.zeros(len(files),(str,200))
 dirs = np.zeros(len(files),(str,200))
 for i in range(len(files)):
     file1 = files[i]
+    band = os.path.basename(os.path.dirname(file1))
     cmd = script+' '+file1
     cmds[i] = cmd
-    dirs[i] = outdir
+    dirs[i] = outdir+band+'/'
 jobs = jd.job_daemon(cmds,dirs,nmulti=10,prefix='tmpsf',hyperthread=True)
 
