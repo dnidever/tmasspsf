@@ -5,8 +5,24 @@ from dlnpyutils import utils as dln,job_daemon as jd
 
 script = '/home/dnidever/projects/tmasspsf/bin/tmasspsf'
 outdir = '/net/dl2/dnidever/2mass/results/'
-files = glob('/net/dl2/dnidever/2mass/images/*.fits.gz')
-files.sort()
+images = glob('/net/dl2/dnidever/2mass/images/*.fits.gz')
+images.sort()
+ibase = [os.path.basename(f) for f in images]
+print(len(images),'2MASS images')
+
+# Remove images that have already been processed
+cfiles = glob('/net/dl2/dnidever/2mass/results/*.fits.gz')
+cfiles.sort()
+cbase = [os.path.basename(f) for f in cfiles]
+_,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
+print(len(ind1),'already processed')
+if len(ind1)>0:
+    files = np.delete(images,ind2)
+else:
+    files = images
+
+print(len(files),'files to process')
+
 np.random.seed(0)
 np.random.shuffle(files)
 cmds = np.zeros(len(files),(str,100))
