@@ -2,6 +2,10 @@ import os
 import numpy as np
 from glob import glob
 from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.table import Table
+from dlnpyutils import utils as dln,coords
+from astropy.coordinates import SkyCoord
 
 def summary():
     """ summary information """
@@ -21,18 +25,35 @@ def summary():
         sumtab['dateobs'][i] = dateobs
         sumtab['ra'][i] = head['crval1']
         sumtab['dec'][i] = head['crval2']
-        sumtab['nx'][i] = head['naxis1']
-        sumtab['ny'][i] = head['naxis2']
+        nx = head['naxis1']
+        ny = head['naxis2']
+        sumtab['nx'][i] = nx
+        sumtab['ny'][i] = ny
         w = WCS(head)
         xx = [0,nx-1,nx-1,0]
         yy = [0,0,ny-1,ny-1]
         vra,vdec = w.all_pix2world(xx,yy,0)
         sumtab['vra'][i] = vra
         sumtab['vdec'][i] = vdec
-        tabfile = files[i].replace('/images/','/results/').replace()
-        thead = fits.getheader(tabfile,1)
-        sumtab['nmeas'][i] = thead['naxis2']
+        tabfile = files[i].replace('/images/','/results/')
+        if os.path.exists(tabfile):
+            thead = fits.getheader(tabfile,1)
+            sumtab['nmeas'][i] = thead['naxis2']
+        else:
+            sumtab['nmeas'][i] = -1
 
-        import pdb; pdb.set_trace()
+        print(i+1,files[i],sumtab['filter'][i],sumtab['ra'][i],
+              sumtab['dec'][i],sumtab['nmeas'][i])
+
+    sumtab = Table(sumtab)
+
+    # Add galactic coordinates
+    coo = SkyCoord(sumtab['ra'],sumtab['dec'],unit='degree',frame='icrs')
+    sumtab['glon'] = coo.galactic.l.degree
+    sumtab['glat'] = coo.galactic.b.degree
 
     import pdb; pdb.set_trace()
+
+    sumtab.write('/net/dl2/dnidever/2mass/tmass_summary.fits',overwrite=True)
+
+    return sumtab
