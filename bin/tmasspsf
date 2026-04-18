@@ -1,0 +1,273 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import numpy as np
+import warnings
+from astropy.io import fits
+from astropy.utils.exceptions import AstropyWarning
+import time
+import shutil
+import re
+import subprocess
+import glob
+import logging
+import socket
+from datetime import datetime
+from argparse import ArgumentParser
+import traceback
+from astropy.wcs import WCS
+from dlnpyutils import utils as dln,coords
+from tmasspsf import prepimage,mkopt,io,query
+
+
+class TimestampedTee:
+    def __init__(self, *files, time_format="%Y-%m-%d %H:%M:%S"):
+        self.files = files
+        self.time_format = time_format
+        self._at_line_start = True
+
+    def write(self, data):
+        for char in data:
+            if self._at_line_start:
+                timestamp = datetime.now().strftime(self.time_format)
+                prefix = f"[{timestamp}] "
+                for f in self.files:
+                    f.write(prefix)
+                self._at_line_start = False
+
+            for f in self.files:
+                f.write(char)
+
+            if char == "\n":
+                self._at_line_start = True
+
+        self.flush()
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+
+if __name__ == "__main__":
+
+    # Process one 2MASS image
+    parser = ArgumentParser(description='Process one 2MASS image')
+    parser.add_argument('filename', type=str, nargs=1, help='Image filename')
+    parser.add_argument('--host',type=str,nargs=1,default="noirlab",help='hostname, default "None", other options supported are "cca","tempest_katie","tempest_group","gp09/7","tacc"')
+    parser.add_argument('-r','--redo', action='store_true', help='Redo exposures that were previously processed')
+    args = parser.parse_args()
+
+    # Inputs
+    filename = args.filename[0]
+    if isinstance(args.host,list):
+        host = str(args.host[0])
+    else:
+        host = args.host
+    redo = args.redo                         # if called, redo = True
+
+    basedir = '/net/dl2/dnidever/2mass/'
+    tmproot = '/data0/dnidever/2mass/'
+    outdir = basedir+'results/'
+
+    base = os.path.basename(filename)
+    base = base.replace('.gz','').replace('.fits','')
+    outfile = outdir+base+'.fits'
+
+    # Check if the output files already exist
+    if (os.path.exists(outfile) or os.path.exists(outfile+'.gz')) and redo==False:
+        print(outfile,' output file already exists.  Use --redo to overwrite.')
+        sys.exit()
+    
+    # Start the logfile 
+    #------------------ 
+    #host = socket.gethostname()
+    #hostname = host.split('.')[0]
+    #logtime = datetime.now().strftime("%Y%m%d%H%M%S") 
+    ## Set up logging to screen and logfile
+    #logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
+    #logger = logging.getLogger() 
+    #while logger.hasHandlers(): # some existing loggers, remove them   
+    #    logger.removeHandler(logger.handlers[0]) 
+    #logger = logging.getLogger()
+    #logtime = datetime.now().strftime("%Y%m%d%H%M%S")
+    #logfile = outdir+'/'+base+'.log'
+    #if os.path.exists(logfile): os.remove(logfile)
+    #fileHandler = logging.FileHandler(logfile)
+    #fileHandler.setFormatter(logFormatter)
+    #logger.addHandler(fileHandler)
+    #consoleHandler = logging.StreamHandler()
+    #consoleHandler.setFormatter(logFormatter)
+    #logger.addHandler(consoleHandler)
+    #logger.setLevel(logging.NOTSET)
+
+    # --- setup ---
+    logfile = outdir+'/'+base+'.log'
+    log = open(logfile, "w", buffering=1)  # line-buffered
+    
+    sys.stdout = TimestampedTee(sys.stdout, log)
+    sys.stderr = TimestampedTee(sys.stderr, log)
+
+    print('Starting to run DAOPHOT on',filename)
+
+    print("filename =",filename)
+    print("host =",host)
+    print("redo =",redo)
+
+    # Start keeping time                                                            
+    t0 = time.time()
+
+    # Make the temporary directory
+    tmpcntr = 1
+    tmpdir = os.path.join(tmproot,base+"."+str(tmpcntr))
+    while (os.path.exists(tmpdir)):
+        tmpcntr = tmpcntr+1
+        tmpdir = os.path.join(tmproot,base+"."+str(tmpcntr))
+        if tmpcntr > 20:
+            print("Temporary Directory counter getting too high. Exiting")
+            sys.exit()
+    if os.path.exists(tmpdir)==False:
+        os.makedirs(tmpdir)
+    origdir = os.getcwd()
+    os.chdir(tmpdir)
+    print("temp dir = ",tmpdir)
+
+    # Copy files to temporary directory
+    shutil.copy2(filename,tmpdir)
+    shutil.copy2('/home/dnidever/daophot/daophot.sh',tmpdir)
+    shutil.copy2('/home/dnidever/daophot/apcor.opt',tmpdir)
+    shutil.copy2('/home/dnidever/daophot/photo.opt',tmpdir)
+    shutil.copy2('/home/dnidever/daophot/goodpsf.pro',tmpdir)
+    shutil.copy2('/home/dnidever/daophot/lstfilter',tmpdir)
+
+    # Uncompress the image, if necessary
+    fitsfile = os.path.basename(filename)
+    if fitsfile[:-3]=='.gz':
+        res = subprocess.run(['gunzip','-f',fitsfile],shell=False)
+        fitsfile = fitsfile[:-3]
+
+    # Prep the image
+    print('Preparing file for DAOPHOT')
+    prepimage.prep(fitsfile)
+
+    # Make DAOOPHOT option files
+    daofitsfile = fitsfile.replace('.fits','_dao.fits')
+    mkopt.mkopt(daofitsfile,thresh=0.25,va=1,verbose=True)
+    opt = io.readopt(daofitsfile.replace('.fits','.opt'))
+    shutil.copy2(daofitsfile.replace('.fits','.opt'),'daophot.opt')
+    shutil.copy2(daofitsfile.replace('.fits','.als.opt'),'allstar.opt')
+
+    # Run daophot.sh script
+    cmd = ['./daophot.sh',daofitsfile.replace('.fits','')]
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+    for line in proc.stdout:
+        print(line, end="")
+
+    # Add ra/dec coordinates to catalog
+    alsfile = daofitsfile.replace('.fits','.als')
+    tab,hd = io.readals(alsfile)
+    print('{:d} sources in DAOPHOT ALS catalog'.format(len(tab)))
+
+    header = fits.getheader(daofitsfile)
+    w = WCS(header)
+    ra,dec = w.all_pix2world(tab['x'],tab['y'],1)
+    tab['ra'] = ra
+    tab['dec'] = dec
+    
+    # Create new IDs
+    newids = [base+'.'+str(num) for num in tab['id']]
+    tab['objid'] = newids
+
+    # Calibrate with 2MASS PSC
+    rar = [np.min(tab['ra']),np.max(tab['ra'])]
+    decr = [np.min(tab['dec']),np.max(tab['dec'])]
+    cenra = np.mean(rar)
+    cendec = np.mean(decr)
+    ddec = decr[1]-decr[0]
+    dra = np.abs(rar[1]-rar[0])*np.cos(np.deg2rad(cendec))
+    if rar[1]-rar[0] > 180:
+        cenra = np.mean([rar[1]-360,rar[0]])
+        dra = np.abs(rar[0]-(rar[1]-360))*np.cos(np.deg2rad(cendec))
+        if cenra > 0:
+            cenra += 360
+    rad = 0.25
+    tmass = query.getrefcat(cenra,cendec,rad,'2mass')
+    print('{:d} 2MASS-PSC sources'.format(len(tmass)))
+
+    # Xmatch
+    print('Calibrating the photometry')
+    ind1,ind2,dist = coords.xmatch(tab['ra'],tab['dec'],tmass['ra'],tmass['dec'],2.0,unique=True)
+    print('{:d} matches with 2MASS-PSC'.format(len(ind1)))
+    tab2 = tab[ind1]
+    tmass2 = tmass[ind2]
+    # Sort by magnitude
+    si = np.argsort(tab2['mag'])
+    tab2 = tab2[si]
+    tmass2 = tmass2[si]
+    filt = header['filter']
+    refmag = tmass2[filt+'mag']
+    refmagerr = tmass2['e_'+filt+'mag']
+    if filt=='j':
+        qflg = [q[0:1] for q in tmass2['qflg']]
+    elif filt=='h':
+        qflg = [q[1:2] for q in tmass2['qflg']]
+    else:
+        qflg = [q[2:3] for q in tmass2['qflg']]
+    qflg = np.array(qflg)
+    # Get good sources
+    gd, = np.where(((qflg=='A') | (qflg=='B') | (qflg=='C')) &
+                   (np.abs(tab2['sharp'])<1) & (tab2['chi']<3) &
+                   (tab2['err']<0.1) & (refmagerr<0.1))
+    print('Using {:d} sources to determine zeropoint'.format(len(gd)))
+    diff = tab2['mag'][gd]-refmag[gd]
+    zpterm = np.nanmedian(diff)
+    zprms = dln.mad(diff)
+    print('zpterm = {:.3f} mag'.format(zpterm))
+    print('zp rms = {:.3f} mag'.format(zprms))
+    tab['instmag'] = tab['mag'].copy()
+    tab['mag'] -= zpterm   # subtractive zeropoint
+
+    # Depth
+    si = np.argsort(tab['mag'])
+    depth95 = tab['mag'][si][int(np.round(0.95*len(tab)))-1] 
+    print('Depth 95% = {:.2f} mag'.format(depth95))
+
+    # Copy final files and delete temporary ones
+    hdu = fits.HDUList()
+    hdu.append(fits.table_to_hdu(tab))
+    hdu[0].header['filter'] = filt
+    hdu[0].header['gain'] = header['gain']
+    hdu[0].header['rdnoise'] = header['rdnoise']
+    hdu[0].header['ra'] = cenra
+    hdu[0].header['dec'] = cendec
+    hdu[0].header['fwhm'] = opt['FW']
+    hdu[0].header['zpterm'] = zpterm
+    hdu[0].header['zperr'] = zprms
+    hdu[0].header['depth95'] = depth95
+    hdu.writeto(outfile,overwrite=True)
+    print('Writing to',outfile)
+    res = subprocess.run(['gzip','-f',outfile],shell=False)
+
+    # Always delete temporary files
+    print('Deleting temporary directory',tmpdir)
+    try:
+        if os.path.exists(tmpdir):
+            shutil.rmtree(tmpdir)
+        else:
+            print(tmpdir,'does not exist')
+    except:
+        traceback.print_exc()
+        print('Problems deleting temporary directory',tmpdir)
+
+    print("Total time = "+str(time.time()-t0)+" seconds")
+
+
+
+
+

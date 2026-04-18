@@ -72,23 +72,20 @@ def prep(filename):
     noise = noisedict[filt]
     newhead['GAIN'] = gain
     newhead['RDNOISE'] = noise
-    print('filename',filename)
-    print('filter=',filt)
-    print('gain=',gain)
-    print('rdnoise=',noise)
-    print('sky=',head['skyval'])
-    print('skysig=',head['skysig'])
+    print('filename = ',filename)
+    print('filter =',filt)
+    print('gain = {:.2f}'.format(gain))
+    print('rdnoise = {:.2f}'.format(noise))
+    print('sky = {:.2f}'.format(head['skyval']))
+    print('skysig = {:.2f}'.format(head['skysig']))
 
     # SKYVAL  =          222.6468201 /   GFIND Sky Estimate                           
     # SKYSIG  =          2.677612305 /   Grid  Noise Estimate  
     med = np.nanmedian(data)
     sig = dln.mad(data)
-    print('med=',med)
-    print('sig=',sig)
+    print('med = {:.3f}'.format(med))
+    print('sig = {:.3f}'.format(sig))
 
     newfilename = filename.replace('.fits','_dao.fits')
     print('Writing to',newfilename)
     fits.writeto(newfilename,newdata,newhead,overwrite=True)
-
-def mkopt(filename):
-    pass
