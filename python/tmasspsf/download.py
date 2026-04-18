@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import requests
-from astropy.table import Table
+from astropy.table import Table,vstack
 from io import BytesIO
 from astropy.coordinates import SkyCoord
 import subprocess
@@ -28,6 +28,10 @@ def download(ra,dec,rad,clobber=False):
     # Look at available images
     #print(tbl.colnames)
 
+    gd, = np.where(tbl['format']=='image/fits')
+    tbl = tbl[gd]
+    print(len(gd),'images to download')
+
     # Download images
     for row in tbl:
         image_url = row['download']   # key column
@@ -53,6 +57,8 @@ def download(ra,dec,rad,clobber=False):
 
         print("Downloaded", fname)
 
+    return tbl
+
 def downloadall(clobber=False):
     """ Download all 2MASS images in the midplane """
 
@@ -63,15 +69,22 @@ def downloadall(clobber=False):
     larr = np.arange(-61,61+rad,rad)
     barr = np.arange(-10,10+rad,rad)
 
+    tab = []
     for i in range(len(larr)):
         for j in range(len(barr)):
             coo = SkyCoord(larr[i],barr[j],unit='degree',frame='galactic')
             ra = coo.icrs.ra.degree
             dec = coo.icrs.dec.degree
-            print(i+1,j+1,larr[i],barr[j])
+            print(i+1,j+1,larr[i],barr[j],ra,dec)
             try:
-                download(ra,dec,rad,clobber=clobber)
+                tab1 = download(ra,dec,rad,clobber=clobber)
+                tab1['l'] = larr[i]
+                tab1['b'] = barr[j]
+                tab.append(tab1)
             except KeyboardInterrupt:
                 raise
             except:
                 traceback.print_exc()
+
+    tab = vstack(tab)
+    import pdb; pdb.set_trace()
