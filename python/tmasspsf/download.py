@@ -47,7 +47,9 @@ def download(ra,dec,rad,clobber=False):
         with open(outfile, "wb") as f:
             f.write(r.content)
         # gzip
-        res = subprocess.run(['gzip','-f',outfile],shell=False)
+        #res = subprocess.run(['gzip','-f',outfile],shell=False)
+        # The files are ALREADY gzipped
+        shutil.move(outfile,outfile+'.gz')
 
         print("Downloaded", fname)
 
