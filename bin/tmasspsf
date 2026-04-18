@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
     # Uncompress the image, if necessary
     fitsfile = os.path.basename(filename)
-    if fitsfile[:-3]=='.gz':
+    if fitsfile[-3:]=='.gz':
         res = subprocess.run(['gunzip','-f',fitsfile],shell=False)
         fitsfile = fitsfile[:-3]
 
@@ -152,7 +152,12 @@ if __name__ == "__main__":
 
     # Make DAOOPHOT option files
     daofitsfile = fitsfile.replace('.fits','_dao.fits')
-    mkopt.mkopt(daofitsfile,thresh=0.25,va=1,verbose=True)
+    try:
+        mkopt.mkopt(daofitsfile,thresh=0.25,va=1,verbose=True)
+    except:
+        traceback.print_exc()
+        print('MKOPT failed.  Using default FWHM=2.5')
+        mkopt.mkopt(daofitsfile,thresh=0.25,va=1,inp_fwhm=2.5,verbose=True)
     opt = io.readopt(daofitsfile.replace('.fits','.opt'))
     shutil.copy2(daofitsfile.replace('.fits','.opt'),'daophot.opt')
     shutil.copy2(daofitsfile.replace('.fits','.als.opt'),'allstar.opt')

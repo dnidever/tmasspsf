@@ -51,7 +51,7 @@ def download(ra,dec,rad,clobber=False):
 
         print("Downloaded", fname)
 
-def downloadall():
+def downloadall(clobber=False):
     """ Download all 2MASS images in the midplane """
 
     # That works well because the 2MASS Atlas images are fixed-size native tiles—512×1024 pixels at 1″/pixel,
@@ -68,7 +68,7 @@ def downloadall():
             dec = coo.icrs.dec.degree
             print(i+1,j+1,larr[i],barr[j])
             try:
-                download(ra,dec,rad)
+                download(ra,dec,rad,clobber=clobber)
             except KeyboardInterrupt:
                 raise
             except:
