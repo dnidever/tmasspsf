@@ -6,6 +6,7 @@ from io import BytesIO
 from astropy.coordinates import SkyCoord
 import subprocess
 import traceback
+import shutil
 
 def download(ra,dec,rad,clobber=False):
 
@@ -13,7 +14,8 @@ def download(ra,dec,rad,clobber=False):
     url = "https://irsa.ipac.caltech.edu/cgi-bin/2MASS/IM/nph-im_sia"
     params = {
         "POS": "{:.6f},{:.6f}".format(ra,dec,),
-        "SIZE": "{:.3f}".format(rad)
+        "SIZE": "{:.3f}".format(rad),
+        "FORMAT": "image/fits"
         }
     #params = {
     #    "POS": "10.684,41.269",  # M31
@@ -35,14 +37,16 @@ def download(ra,dec,rad,clobber=False):
     # Download images
     for row in tbl:
         image_url = row['download']   # key column
-        fname = image_url.split("name=")[-1]
+        #fname = image_url.split("name=")[-1]
+        fname = f"{row['band']}_{row['coadd_key']}_{row['date']}{row['hem']}_{row['scan']:03d}_{row['image']:04d}.fits"
+        band = row['band']
 
         # Some are html files, do not download those
         # format               object     text/html  
-        if row['format'] != 'image/fits':
-            continue
+        #if row['format'] != 'image/fits':
+        #    continue
 
-        outfile = '/net/dl2/dnidever/2mass/images/'+fname
+        outfile = '/net/dl2/dnidever/2mass/images/'+band+'/'+fname
         if (os.path.exists(outfile) or os.path.exists(outfile+'.gz')) and clobber==False:
             print(outfile,'already exists')
             continue
@@ -56,6 +60,8 @@ def download(ra,dec,rad,clobber=False):
         shutil.move(outfile,outfile+'.gz')
 
         print("Downloaded", fname)
+
+    #import pdb; pdb.set_trace()
 
     return tbl
 
