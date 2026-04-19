@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+
+import os
+import numpy as np
+from glob import glob
+from dlnpyutils import utils as dln,job_daemon as jd
+from argparse import ArgumentParser
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description='Run 2MASS PSF photometry')
+    parser.add_argument('files', type=str, nargs='+', help='Spectrum FITS files or list')
+    parser.add_argument('--nmulti', type=str, nargs=1, default=10, help='Number of parallel threads to run')
+    parser.add_argument('-r','--redo', action='store_true', help='Redo/clobber')
+    args = parser.parse_args()
+
+    script = '/home/dnidever/projects/tmasspsf/bin/tmasspsf'
+    outdir = '/net/dl2/dnidever/2mass/results/'
+    images = glob('/net/dl2/dnidever/2mass/images/?/*.fits.gz')
+    images.sort() 
+    ibase = [os.path.basename(f) for f in images]
+    print(len(images),'2MASS images')
+
+    # Remove images that have already been processed
+    cfiles = glob('/net/dl2/dnidever/2mass/results/?/*.fits.gz')
+    cfiles.sort()
+    cbase = [os.path.basename(f) for f in cfiles]
+    _,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
+    print(len(ind1),'already processed')
+    if len(ind1)>0:
+        files = np.delete(images,ind2)
+    else:
+        files = images
+
+    print(len(files),'files to process')
+
+    np.random.seed(0)
+    np.random.shuffle(files)
+    cmds = np.zeros(len(files),(str,200))
+    dirs = np.zeros(len(files),(str,200))
+    for i in range(len(files)):
+        file1 = files[i]
+        band = os.path.basename(os.path.dirname(file1))
+        cmd = script+' '+file1
+        cmds[i] = cmd
+        dirs[i] = outdir+band+'/'
+    jobs = jd.job_daemon(cmds,dirs,nmulti=10,prefix='tmpsf',hyperthread=True)
+
