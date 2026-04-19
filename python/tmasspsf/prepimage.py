@@ -4,6 +4,7 @@ from astropy.io import fits
 from astropy.table import Table,vstack
 from dlnpyutils import utils as dln
 from datetime import datetime
+from astropy.time import Time
 
 def prep(filename):
     hdu = fits.open(filename)
@@ -37,7 +38,7 @@ def prep(filename):
     # South
     if head['TELNAME']=='CTIO':
         # South, 1998-03-18 to 1999-02-26: 8.5 / 8.0 / 9.9; 43 / 45 / 45
-        if datetime.fromisoformat(dateobs) < datetime(1999,2,26):
+        if Time(dateobs) < datetime(1999,2,26):
             gaindict = {'j':8.5,'h':8.0,'k':9.9}
             noisedict = {'j':43.0,'h':45.0,'k':45.0}
         # South, 1999-03-01 to end: 6.8 / 7.7 / 10.0; 45 / 41 / 50.
@@ -47,19 +48,19 @@ def prep(filename):
     # North
     else:
         # North, 1997-05-21 to 1998-06-04: gain J/H/Ks = 10.0 / 10.0 / 8.0 e⁻/DN; read noise = 40 / 40 / 56 e⁻
-        if datetime.fromisoformat(dateobs) < datetime(1998,6,4):
+        if Time(dateobs) < datetime(1998,6,4):
             gaindict = {'j':10.0,'h':10.0,'k':8.0}
             noisedict = {'j':40.0,'h':40.0,'k':56.0}
         # North, 1998-06-05 to 1998-09-16: 10.0 / 10.0 / 8.0; 42 / 40 / 57
-        elif datetime.fromisoformat(dateobs) < datetime(1998,9,16):
+        elif Time(dateobs) < datetime(1998,9,16):
             gaindict = {'j':10.0,'h':10.0,'k':8.0}
             noisedict = {'j':42.0,'h':40.0,'k':57.0}
         # North, 1998-09-19 to 1998-10-23: 10.0 / 10.0 / 8.0; 42 / 40 / 57
-        elif datetime.fromisoformat(dateobs) < datetime(1998,10,23):
+        elif Time(dateobs) < datetime(1998,10,23):
             gaindict = {'j':10.0,'h':10.0,'k':8.0}
             noisedict = {'j':42.0,'h':40.0,'k':57.0}
         # North, 1998-10-24 to 1999-07-23: 10.0 / 8.0 / 6.5; 44 / 50 / 54
-        elif datetime.fromisoformat(dateobs) < datetime(1999,7,23):
+        elif Time(dateobs) < datetime(1999,7,23):
             gaindict = {'j':10.0,'h':8.0,'k':6.5}
             noisedict = {'j':44.0,'h':50.0,'k':54.0}
         # North, 1999-09-13 to end: 7.9 / 9.4 / 8.7; 38 / 42 / 44
