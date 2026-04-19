@@ -9,8 +9,9 @@ from astropy.coordinates import SkyCoord
 
 def summary():
     """ summary information """
-    files = glob('/net/dl2/dnidever/2mass/images/*.fits.gz')
+    files = glob('/net/dl2/dnidever/2mass/images/?/*.fits.gz')
     files.sort()
+    print(len(files),'2MASS images')
     dt = [('filename',str,100),('filter',str,1),('dateobs',str,50),
           ('ra',float),('dec',float),
           ('nx',int),('ny',int),('vra',float,4),('vdec',float,4),
