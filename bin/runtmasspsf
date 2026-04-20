@@ -33,17 +33,24 @@ if __name__ == "__main__":
     # Remove images that are being processed already
     prevtasklists = glob(logdir+'tmasspsf_tasks.*.*.fits')
     if len(prevtasklists)>0 and redo==False:
+        print(len(prevtasklists),'previous task lists found')
         prevtasks = []
         for f in prevtasklists:
             prevtasks.append(Table.read(f))
         prevtasks = vstack(prevtasks)
-    
+
+        import pdb; pdb.set_trace()
+
+        # Match to the files list and remove them
+        _,ind1,ind2 = np.intersect1d(prevtasks['imfile'],files,return_indices=True)
+
+
         import pdb; pdb.set_trace()
 
 
     # Remove images that have already been processed
     if redo==False:
-        cfiles = glob('/net/dl2/dnidever/2mass/results/?/*.fits.gz')
+        cfiles = glob(outdir+'?/*.fits.gz')
         cfiles.sort()
         cbase = [os.path.basename(f) for f in cfiles]
         _,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
@@ -64,11 +71,14 @@ if __name__ == "__main__":
     else:
         ntorun = len(files)
     
-    dt = [('cmd',str,200),('dir',str,200)]
+    dt = [('imfile',str,200),('resfile',str,200),('band',str,2),('cmd',str,200),('dir',str,200)]
     tasks = np.zeros(ntorun,dtype=np.dtype(dt))
     for i in range(ntorun):
         file1 = files[i]
+        tasks['file'][i] = file1
         band = os.path.basename(os.path.dirname(file1))
+        tasks['band'][i] = band
+        tasks['resfile'][] = file1.replace('/images/','/results/')
         cmd = script+' '+file1
         tasks['cmd'][i] = cmd
         tasks['dir'][i] = outdir+band+'/'
