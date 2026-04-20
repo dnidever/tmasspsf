@@ -6,17 +6,18 @@ from glob import glob
 from dlnpyutils import utils as dln,job_daemon as jd
 from argparse import ArgumentParser
 from datetime import datetime
+from astropy.table import Table,vstack
 import socket
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Run 2MASS PSF photometry')
-    parser.add_argument('files', type=str, nargs='+', help='Spectrum FITS files or list')
+    #parser.add_argument('--files', type=str, nargs='+', default='', help='Spectrum FITS files or list')
     parser.add_argument('--nmulti', type=str, nargs=1, default=10, help='Number of parallel threads to run')
     parser.add_argument('--ntasks', type=str, nargs=1, default=-1, help='Number of tasks to run. Default is all')
     parser.add_argument('-r','--redo', action='store_true', help='Redo/clobber')
     args = parser.parse_args()
-    nmulti = np.atleast_1d(args.multi)[0]
-    ntasks = np.atleast_1d(args.ntasks)[0]
+    nmulti = int(np.atleast_1d(args.nmulti)[0])
+    ntasks = int(np.atleast_1d(args.ntasks)[0])
     redo = args.redo
 
     script = '/home/dnidever/projects/tmasspsf/bin/tmasspsf'
@@ -28,6 +29,17 @@ if __name__ == "__main__":
     images.sort() 
     ibase = [os.path.basename(f) for f in images]
     print(len(images),'2MASS images')
+
+    # Remove images that are being processed already
+    prevtasklists = glob(logdir+'tmasspsf_tasks.*.*.fits')
+    if len(prevtasklists)>0 and redo==False:
+        prevtasks = []
+        for f in prevtasklists:
+            prevtasks.append(Table.read(f))
+        prevtasks = vstack(prevtasks)
+    
+        import pdb; pdb.set_trace()
+
 
     # Remove images that have already been processed
     if redo==False:
@@ -53,7 +65,7 @@ if __name__ == "__main__":
         ntorun = len(files)
     
     dt = [('cmd',str,200),('dir',str,200)]
-    tasks = np.zeros(ntorun,dtype=np.type(dt))
+    tasks = np.zeros(ntorun,dtype=np.dtype(dt))
     for i in range(ntorun):
         file1 = files[i]
         band = os.path.basename(os.path.dirname(file1))
@@ -69,7 +81,7 @@ if __name__ == "__main__":
     hostname = socket.gethostname()
     host = hostname.split('.')[0]
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    taskfile = logdir+'tmasspsf.'+host+'.'+timestamp+'.fits'
+    taskfile = logdir+'tmasspsf_tasks.'+host+'.'+timestamp+'.fits'
     print('Writing tasks file to',taskfile)
     Table(tasks).write(taskfile,overwrite=True)
 
