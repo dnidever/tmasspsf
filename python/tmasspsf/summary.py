@@ -53,7 +53,7 @@ def summary():
     sumtab['glon'] = coo.galactic.l.degree
     sumtab['glat'] = coo.galactic.b.degree
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     sumtab.write('/net/dl2/dnidever/2mass/tmass_summary.fits',overwrite=True)
 
