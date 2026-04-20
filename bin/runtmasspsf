@@ -39,14 +39,14 @@ if __name__ == "__main__":
             prevtasks.append(Table.read(f))
         prevtasks = vstack(prevtasks)
 
-        import pdb; pdb.set_trace()
-
         # Match to the files list and remove them
-        _,ind1,ind2 = np.intersect1d(prevtasks['imfile'],files,return_indices=True)
-
-
-        import pdb; pdb.set_trace()
-
+        _,ind1,ind2 = np.intersect1d(prevtasks['imfile'],images,return_indices=True)
+        print(len(ind1),'matches')
+        if len(ind1) == len(images):
+            images = []
+        elif len(ind1)>0:
+            images = np.delete(images,ind2)
+            ibase = np.delete(ibase,ind2)
 
     # Remove images that have already been processed
     if redo==False:
