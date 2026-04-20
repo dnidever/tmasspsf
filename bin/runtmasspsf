@@ -5,43 +5,74 @@ import numpy as np
 from glob import glob
 from dlnpyutils import utils as dln,job_daemon as jd
 from argparse import ArgumentParser
+from datetime import datetime
+import socket
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Run 2MASS PSF photometry')
     parser.add_argument('files', type=str, nargs='+', help='Spectrum FITS files or list')
     parser.add_argument('--nmulti', type=str, nargs=1, default=10, help='Number of parallel threads to run')
+    parser.add_argument('--ntasks', type=str, nargs=1, default=-1, help='Number of tasks to run. Default is all')
     parser.add_argument('-r','--redo', action='store_true', help='Redo/clobber')
     args = parser.parse_args()
+    nmulti = np.atleast_1d(args.multi)[0]
+    ntasks = np.atleast_1d(args.ntasks)[0]
+    redo = args.redo
 
     script = '/home/dnidever/projects/tmasspsf/bin/tmasspsf'
-    outdir = '/net/dl2/dnidever/2mass/results/'
-    images = glob('/net/dl2/dnidever/2mass/images/?/*.fits.gz')
+    basedir = '/net/dl2/dnidever/2mass/'
+    outdir = basedir+'results/'
+    logdir = basedir+'logs/'
+    imagedir = basedir+'images/'
+    images = glob(imagedir+'?/*.fits.gz')
     images.sort() 
     ibase = [os.path.basename(f) for f in images]
     print(len(images),'2MASS images')
 
     # Remove images that have already been processed
-    cfiles = glob('/net/dl2/dnidever/2mass/results/?/*.fits.gz')
-    cfiles.sort()
-    cbase = [os.path.basename(f) for f in cfiles]
-    _,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
-    print(len(ind1),'already processed')
-    if len(ind1)>0:
-        files = np.delete(images,ind2)
+    if redo==False:
+        cfiles = glob('/net/dl2/dnidever/2mass/results/?/*.fits.gz')
+        cfiles.sort()
+        cbase = [os.path.basename(f) for f in cfiles]
+        _,ind1,ind2 = np.intersect1d(cbase,ibase,return_indices=True)
+        print(len(ind1),'already processed')
+        if len(ind1)>0:
+            files = np.delete(images,ind2)
+        else:
+            files = images
     else:
         files = images
 
     print(len(files),'files to process')
 
-    np.random.seed(0)
-    np.random.shuffle(files)
-    cmds = np.zeros(len(files),(str,200))
-    dirs = np.zeros(len(files),(str,200))
-    for i in range(len(files)):
+    # Limit tasks
+    if ntasks > 0 and len(files) > ntasks:
+        print('Limiting tasks to',ntasks)
+        ntorun = ntasks
+    else:
+        ntorun = len(files)
+    
+    dt = [('cmd',str,200),('dir',str,200)]
+    tasks = np.zeros(ntorun,dtype=np.type(dt))
+    for i in range(ntorun):
         file1 = files[i]
         band = os.path.basename(os.path.dirname(file1))
         cmd = script+' '+file1
-        cmds[i] = cmd
-        dirs[i] = outdir+band+'/'
-    jobs = jd.job_daemon(cmds,dirs,nmulti=10,prefix='tmpsf',hyperthread=True)
+        tasks['cmd'][i] = cmd
+        tasks['dir'][i] = outdir+band+'/'
+
+    # Now shuffle
+    np.random.seed(0)
+    np.random.shuffle(tasks)
+
+    # Save the tasks file
+    hostname = socket.gethostname()
+    host = hostname.split('.')[0]
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    taskfile = logdir+'tmasspsf.'+host+'.'+timestamp+'.fits'
+    print('Writing tasks file to',taskfile)
+    Table(tasks).write(taskfile,overwrite=True)
+
+    # Start the job daemon
+    jobs = jd.job_daemon(tasks['cmd'],tasks['dir'],nmulti=nmulti,prefix='tmpsf',hyperthread=True)
 
