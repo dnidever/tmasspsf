@@ -75,10 +75,10 @@ if __name__ == "__main__":
     tasks = np.zeros(ntorun,dtype=np.dtype(dt))
     for i in range(ntorun):
         file1 = files[i]
-        tasks['file'][i] = file1
+        tasks['imfile'][i] = file1
         band = os.path.basename(os.path.dirname(file1))
         tasks['band'][i] = band
-        tasks['resfile'][] = file1.replace('/images/','/results/')
+        tasks['resfile'][i] = file1.replace('/images/','/results/')
         cmd = script+' '+file1
         tasks['cmd'][i] = cmd
         tasks['dir'][i] = outdir+band+'/'
