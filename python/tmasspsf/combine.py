@@ -219,6 +219,6 @@ def combine():
         Table(obj).write(outfile,overwrite=True)
         res = subprocess.run(['gzip','-f',outfile],shell=False)
 
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
     import pdb; pdb.set_trace()
