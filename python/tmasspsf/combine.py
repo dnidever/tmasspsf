@@ -2,6 +2,7 @@ import os
 import numpy as np
 from dlnpyutils import utils as dln,coords
 import healpy as hp
+from astropy.io import fits
 from astropy.table import Table,vstack
 from astropy.coordinates import SkyCoord
 import subprocess
@@ -155,6 +156,7 @@ def combine():
     npix = hp.nside2npix(nside)
     pixsize = hp.nside2resol(nside,arcmin=True)/60.0
     sumtab = Table.read('/net/dl2/dnidever/2mass/tmass_summary.fits')
+    outdir = '/net/dl2/dnidever/2mass/combine'
 
     hdt = [('pix',int),('ra',float),('dec',float),
            ('glon',float),('glat',float),('nimages',int)]
@@ -214,11 +216,47 @@ def combine():
         obj = combinehealpix(meta)
 
         # Save the catalogs
-        outfile = '/net/dl2/dnidever/2mass/combine/'+str(ipix)+'.fits'
+        outfile = outdir+'/'+str(int(ipix)//1000)+'/'+str(ipix)+'.fits'
+        if os.path.exists(os.path.dirname(outfile))==False:
+            os.makedirs(os.path.dirname(outfile))
         print('Writing to',outfile)
-        Table(obj).write(outfile,overwrite=True)
+        hdu = fits.HDUList()
+        hdu.append(fits.table_to_hdu(Table(obj)))
+        # summary info
+        dt = [('pix',int),('ra',float),('dec',float),
+              ('glon',float),('glat',float),('nimages',int),
+              ('nobj',int),('njobj',int),('nhobj',int),
+              ('nkobj',int),('njhobj',int),('njkobj',int),
+              ('nhkobj',int),('njhkobj',int)]
+        hsumtab = np.zeros(1,dtype=np.dtype(dt))
+        hsumtab['pix'] = ipix
+        hsumtab['ra'] = cenra
+        hsumtab['dec'] = cendec
+        hsumtab['glon'] = glon
+        hsumtab['glat'] = glat
+        hsumtab['nimages'] = len(meta)
+        hsumtab['nobj'] = len(obj)
+        hsumtab['njobj'] = np.sum(np.isfinite(obj['jmag']))
+        hsumtab['nhobj'] = np.sum(np.isfinite(obj['hmag']))
+        hsumtab['nkobj'] = np.sum(np.isfinite(obj['kmag']))
+        gg, = np.where(np.isfinite(obj['jmag']) & np.isfinite(obj['hmag']))
+        hsumtab['njhobj'] = len(gg)
+        gg, = np.where(np.isfinite(obj['jmag']) & np.isfinite(obj['kmag']))
+        hsumtab['njkobj'] = len(gg)
+        gg, = np.where(np.isfinite(obj['hmag']) & np.isfinite(obj['kmag']))
+        hsumtab['nhkobj'] = len(gg)
+        gg, = np.where(np.isfinite(obj['jmag']) & np.isfinite(obj['hmag']) &
+                       np.isfinite(obj['kmag']))
+        hsumtab['njhkobj'] = len(gg)
+        hdu.append(fits.table_to_hdu(Table(hsumtab)))
+        # image list
+        hdu.append(fits.table_to_hdu(Table(meta)))
+        hdu.writeto(outfile,overwrite=True)
+        #Table(obj).write(outfile,overwrite=True)
         res = subprocess.run(['gzip','-f',outfile],shell=False)
 
         #import pdb; pdb.set_trace()
+
+    Table(htab).write(outdir+'/tmass_summary.fits',overwrite=True)
 
     import pdb; pdb.set_trace()
